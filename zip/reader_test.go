@@ -120,6 +120,9 @@ var tests = []ZipTest{
 		Name: "readme.zip",
 	},
 	{
+		Name:  "readme.trailingzip",
+	},
+	{
 		Name:  "readme.notzip",
 		Error: ErrFormat,
 	},

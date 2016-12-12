@@ -445,8 +445,6 @@ func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) 
 	}
 
 	if computedDirOffset > 0 && computedDirOffset != int64(d.directoryOffset) {
-		fmt.Fprintf(os.Stderr, "computed dir offset = %d\n", computedDirOffset)
-		fmt.Fprintf(os.Stderr, "stored   dir offset = %d\n", d.directoryOffset)
 		startSkipLen := uint64(computedDirOffset) - d.directoryOffset
 		d.directoryOffset = uint64(computedDirOffset)
 		d.startSkipLen = startSkipLen
