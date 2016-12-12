@@ -5,7 +5,7 @@
 package zip_test
 
 import (
-	"arkive/zip"
+	"github.com/itchio/arkive/zip"
 	"bytes"
 	"compress/flate"
 	"fmt"
