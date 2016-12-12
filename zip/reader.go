@@ -421,13 +421,6 @@ func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) 
 		directoryOffset:    uint64(b.uint32()),
 		commentLen:         b.uint16(),
 	}
-	computedDirOffset := uint64(directoryEndOffset - int64(d.directorySize))
-
-	if computedDirOffset != d.directoryOffset {
-		startSkipLen := computedDirOffset - d.directoryOffset
-		d.directoryOffset = uint64(directoryEndOffset - int64(d.directorySize))
-		d.startSkipLen = startSkipLen
-	}
 
 	l := int(d.commentLen)
 	if l > len(b) {
@@ -435,16 +428,30 @@ func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) 
 	}
 	d.comment = string(b[:l])
 
+	var computedDirOffset int64
+
 	// These values mean that the file can be a zip64 file
 	if d.directoryRecords == 0xffff || d.directorySize == 0xffff || d.directoryOffset == 0xffffffff {
 		p, err := findDirectory64End(r, directoryEndOffset)
 		if err == nil && p >= 0 {
 			err = readDirectory64End(r, p, d)
+			computedDirOffset = p - int64(d.directorySize)
 		}
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		computedDirOffset = directoryEndOffset - int64(d.directorySize)
 	}
+
+	if computedDirOffset > 0 && computedDirOffset != int64(d.directoryOffset) {
+		fmt.Fprintf(os.Stderr, "computed dir offset = %d\n", computedDirOffset)
+		fmt.Fprintf(os.Stderr, "stored   dir offset = %d\n", d.directoryOffset)
+		startSkipLen := uint64(computedDirOffset) - d.directoryOffset
+		d.directoryOffset = uint64(computedDirOffset)
+		d.startSkipLen = startSkipLen
+	}
+
 	// Make sure directoryOffset points to somewhere in our file.
 	if o := int64(d.directoryOffset); o < 0 || o >= size {
 		return nil, ErrFormat
