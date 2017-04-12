@@ -6,11 +6,12 @@ package zip
 
 import (
 	"compress/flate"
-	"github.com/GranPC/lzma"
 	"errors"
 	"io"
 	"io/ioutil"
 	"sync"
+
+	"github.com/itchio/lzma"
 )
 
 // A Compressor returns a new compressing writer, writing to w.
@@ -120,7 +121,7 @@ var (
 	}
 
 	decompressors = map[uint16]Decompressor{
-		Store:   func(r io.Reader, f *File) (io.ReadCloser) { return ioutil.NopCloser(r) },
+		Store:   func(r io.Reader, f *File) io.ReadCloser { return ioutil.NopCloser(r) },
 		Deflate: newFlateReader,
 		LZMA:    newLZMAReader,
 	}
