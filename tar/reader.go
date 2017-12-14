@@ -820,3 +820,153 @@ func (sfr *sparseFileReader) Read(b []byte) (n int, err error) {
 func (sfr *sparseFileReader) numBytes() int64 {
 	return sfr.rfr.numBytes()
 }
+
+type CurrType int
+
+const (
+	CurrTypeNone   = 0
+	CurrTypeReg    = 1
+	CurrTypeSparse = 2
+)
+
+type Checkpoint struct {
+	Roffset int64
+
+	Pad      int64
+	CurrType CurrType
+
+	RegNb int64
+
+	SparseSp    []CheckpointSparseEntry
+	SparsePos   int64
+	SparseTotal int64
+}
+
+type CheckpointSparseEntry struct {
+	Offset   int64
+	NumBytes int64
+}
+
+type SaverReader interface {
+	Next() (*Header, error)
+	Read(buf []byte) (int, error)
+
+	Save() (*Checkpoint, error)
+}
+
+type saverReader struct {
+	tr *Reader
+	cr *countingReader
+}
+
+var _ SaverReader = (*saverReader)(nil)
+
+func NewSaverReader(r io.Reader) (SaverReader, error) {
+	cr := &countingReader{
+		r: r,
+	}
+	tr := NewReader(cr)
+	return &saverReader{tr, cr}, nil
+}
+
+func (sr *saverReader) Next() (*Header, error) {
+	return sr.tr.Next()
+}
+
+func (sr *saverReader) Read(buf []byte) (int, error) {
+	return sr.tr.Read(buf)
+}
+
+func (sr *saverReader) Save() (*Checkpoint, error) {
+	tr := sr.tr
+
+	c := &Checkpoint{
+		Roffset: sr.cr.count,
+		Pad:     tr.pad,
+	}
+
+	if tr.curr != nil {
+		if sfr, ok := tr.curr.(*sparseFileReader); ok {
+			if rfr, ok := sfr.rfr.(*regFileReader); ok {
+				c.CurrType = CurrTypeSparse
+				c.RegNb = rfr.nb
+				c.SparsePos = sfr.pos
+				c.SparseTotal = sfr.total
+				c.SparseSp = make([]CheckpointSparseEntry, len(sfr.sp))
+				for i, v := range sfr.sp {
+					c.SparseSp[i] = CheckpointSparseEntry{
+						Offset:   v.offset,
+						NumBytes: v.numBytes,
+					}
+				}
+			} else {
+				return nil, errors.New("sparse file reader didn't have a regular file reader inside")
+			}
+		} else if rfr, ok := tr.curr.(*regFileReader); ok {
+			c.CurrType = CurrTypeReg
+			c.RegNb = rfr.nb
+		}
+	}
+
+	return c, nil
+}
+
+func (c *Checkpoint) Resume(r io.Reader) (SaverReader, error) {
+	cr := &countingReader{
+		r:     r,
+		count: c.Roffset,
+	}
+
+	tr := &Reader{
+		r:   cr,
+		pad: c.Pad,
+	}
+
+	switch c.CurrType {
+	case CurrTypeReg:
+		rfr := &regFileReader{
+			nb: c.RegNb,
+			r:  cr,
+		}
+		tr.curr = rfr
+	case CurrTypeSparse:
+		rfr := &regFileReader{
+			nb: c.RegNb,
+			r:  cr,
+		}
+		sfr := &sparseFileReader{
+			rfr:   rfr,
+			pos:   c.SparsePos,
+			total: c.SparseTotal,
+			sp:    make([]sparseEntry, len(c.SparseSp)),
+		}
+		for i, v := range c.SparseSp {
+			sfr.sp[i] = sparseEntry{
+				offset:   v.Offset,
+				numBytes: v.NumBytes,
+			}
+		}
+
+		tr.curr = sfr
+	}
+
+	return &saverReader{
+		cr: cr,
+		tr: tr,
+	}, nil
+}
+
+// counting reader
+
+type countingReader struct {
+	r     io.Reader
+	count int64
+}
+
+var _ io.Reader = (*countingReader)(nil)
+
+func (cr *countingReader) Read(buf []byte) (int, error) {
+	n, err := cr.r.Read(buf)
+	cr.count += int64(n)
+	return n, err
+}
