@@ -11,7 +11,7 @@ data prepended to them (like [MojoSetup][] installers).
 
 [MojoSetup]: https://icculus.org/mojosetup/
 
-(Up-to-date with go 1.7.1)
+(Up-to-date with go 1.10.1)
 
 ### arkive/tar
 
