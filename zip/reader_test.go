@@ -376,6 +376,18 @@ var tests = []ZipTest{
 		},
 	},
 	{
+		Name: "cp-437.zip",
+		File: []ZipTestFile{
+			{
+				// encoded as CP-437 by Windows 10's compressed files thing
+				Name:     "français",
+				Content:  []byte{},
+				Mode:     0666,
+				Modified: time.Date(2018, 9, 10, 23, 42, 40, 0, time.UTC),
+			},
+		},
+	},
+	{
 		Name: "utf8-winzip.zip",
 		File: []ZipTestFile{
 			{
