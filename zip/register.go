@@ -6,6 +6,7 @@ package zip
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"sync"
@@ -19,7 +20,7 @@ import (
 // The Compressor itself must be safe to invoke from multiple goroutines
 // simultaneously, but each returned writer will be used only by
 // one goroutine at a time.
-type Compressor func(w io.Writer) (io.WriteCloser, error)
+type Compressor func(s CompressionSettings, w io.Writer) (io.WriteCloser, error)
 
 // A Decompressor returns a new decompressing reader, reading from r.
 // The ReadCloser's Close method must be used to release associated resources.
@@ -28,42 +29,70 @@ type Compressor func(w io.Writer) (io.WriteCloser, error)
 // one goroutine at a time.
 type Decompressor func(r io.Reader, f *File) io.ReadCloser
 
-var flateWriterPool sync.Pool
-
-func newFlateWriter(w io.Writer) io.WriteCloser {
-	fw, ok := flateWriterPool.Get().(*pflate.Writer)
-	if ok {
-		fw.Reset(w)
-	} else {
-		fw, _ = pflate.NewWriter(w, 5)
-	}
-	return &pooledFlateWriter{fw: fw}
+type CompressionSettings struct {
+	Flate FlateSettings
 }
 
-type pooledFlateWriter struct {
-	mu sync.Mutex // guards Close and Write
-	fw *pflate.Writer
+type FlateSettings struct {
+	// must be between flate.NoCompression and flate.BestCompression (inclusive)
+	Level int
+	// Defaults to 256KiB (Minimum 16KiB)
+	BlockSize int
+	// Defaults to 16 (Minimum 1)
+	Blocks int
 }
 
-func (w *pooledFlateWriter) Write(p []byte) (n int, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.fw == nil {
-		return 0, errors.New("Write after Close")
+func (fs *FlateSettings) Validate() error {
+	if fs.Level < flate.NoCompression || fs.Level > flate.BestCompression {
+		return fmt.Errorf("flate settings: level must be between %d and %d, was %d", flate.NoCompression, flate.BestCompression, fs.Level)
 	}
-	return w.fw.Write(p)
+	if fs.Blocks <= 0 {
+		return fmt.Errorf("flate settings: blocks must be equal or greater than 0")
+	}
+	if fs.BlockSize <= 16384 {
+		return fmt.Errorf("flate settings: block size must be equal or greater than 16384")
+	}
+	return nil
 }
 
-func (w *pooledFlateWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	var err error
-	if w.fw != nil {
-		err = w.fw.Close()
-		flateWriterPool.Put(w.fw)
-		w.fw = nil
+func (cs *CompressionSettings) Validate() error {
+	err := cs.Flate.Validate()
+	if err != nil {
+		return err
 	}
-	return err
+
+	return nil
+}
+
+var defaultCompressionSettings = CompressionSettings{
+	Flate: FlateSettings{
+		Level:     flate.DefaultCompression,
+		BlockSize: 256 * 1024, // 256KiB
+		Blocks:    16,
+	},
+}
+
+var bestCompressionSettings = CompressionSettings{
+	Flate: FlateSettings{
+		Level:     flate.BestCompression,
+		BlockSize: 16 * 1024 * 1024, // 16MiB
+		Blocks:    16,
+	},
+}
+
+func DefaultCompressionSettings() CompressionSettings {
+	return defaultCompressionSettings
+}
+
+func BestCompressionSettings() CompressionSettings {
+	return bestCompressionSettings
+}
+
+func newFlateWriter(s CompressionSettings, w io.Writer) io.WriteCloser {
+	fw, _ := pflate.NewWriter(w, s.Flate.Level)
+	// error ignored on purpose
+	_ = fw.SetConcurrency(s.Flate.BlockSize, s.Flate.Blocks)
+	return fw
 }
 
 var flateReaderPool sync.Pool
@@ -71,7 +100,8 @@ var flateReaderPool sync.Pool
 func newFlateReader(r io.Reader, f *File) io.ReadCloser {
 	fr, ok := flateReaderPool.Get().(io.ReadCloser)
 	if ok {
-		fr.(flate.Resetter).Reset(r, nil)
+		// ignoring error on purpose
+		_ = fr.(flate.Resetter).Reset(r, nil)
 	} else {
 		fr = flate.NewReader(r)
 	}
@@ -105,13 +135,14 @@ func (r *pooledFlateReader) Close() error {
 }
 
 var (
-	compressors   sync.Map // map[uint16]Compressor
-	decompressors sync.Map // map[uint16]Decompressor
+	compressors           sync.Map // map[uint16]Compressor
+	decompressors         sync.Map // map[uint16]Decompressor
+	flateCompressionLevel int      = flate.DefaultCompression
 )
 
 func init() {
-	compressors.Store(Store, Compressor(func(w io.Writer) (io.WriteCloser, error) { return &nopCloser{w}, nil }))
-	compressors.Store(Deflate, Compressor(func(w io.Writer) (io.WriteCloser, error) { return newFlateWriter(w), nil }))
+	compressors.Store(Store, Compressor(func(s CompressionSettings, w io.Writer) (io.WriteCloser, error) { return &nopCloser{w}, nil }))
+	compressors.Store(Deflate, Compressor(func(s CompressionSettings, w io.Writer) (io.WriteCloser, error) { return newFlateWriter(s, w), nil }))
 
 	decompressors.Store(Store, Decompressor(func(r io.Reader, f *File) io.ReadCloser { return ioutil.NopCloser(r) }))
 	decompressors.Store(Deflate, Decompressor(newFlateReader))

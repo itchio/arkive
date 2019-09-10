@@ -21,12 +21,13 @@ var (
 
 // Writer implements a zip file writer.
 type Writer struct {
-	cw          *countWriter
-	dir         []*header
-	last        *fileWriter
-	closed      bool
-	compressors map[uint16]Compressor
-	comment     string
+	cw                  *countWriter
+	dir                 []*header
+	last                *fileWriter
+	closed              bool
+	compressors         map[uint16]Compressor
+	comment             string
+	compressionSettings CompressionSettings
 
 	// testHookCloseSizeOffset if non-nil is called with the size
 	// of offset of the central directory at Close.
@@ -40,7 +41,20 @@ type header struct {
 
 // NewWriter returns a new Writer writing a zip file to w.
 func NewWriter(w io.Writer) *Writer {
-	return &Writer{cw: &countWriter{w: bufio.NewWriter(w)}}
+	return &Writer{cw: &countWriter{w: bufio.NewWriter(w)}, compressionSettings: defaultCompressionSettings}
+}
+
+func (w *Writer) GetCompressionSettings() CompressionSettings {
+	return w.compressionSettings
+}
+
+func (w *Writer) SetCompressionSettings(s CompressionSettings) error {
+	err := s.Validate()
+	if err != nil {
+		return err
+	}
+	w.compressionSettings = s
+	return nil
 }
 
 // SetOffset sets the offset of the beginning of the zip data within the
@@ -328,7 +342,7 @@ func (w *Writer) CreateHeader(fh *FileHeader) (io.Writer, error) {
 		return nil, ErrAlgorithm
 	}
 	var err error
-	fw.comp, err = comp(fw.compCount)
+	fw.comp, err = comp(w.compressionSettings, fw.compCount)
 	if err != nil {
 		return nil, err
 	}
