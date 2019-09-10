@@ -11,7 +11,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/klauspost/compress/flate"
+	"compress/flate"
 )
 
 const (
@@ -21,12 +21,11 @@ const (
 )
 
 const (
-	NoCompression       = flate.NoCompression
-	BestSpeed           = flate.BestSpeed
-	BestCompression     = flate.BestCompression
-	DefaultCompression  = flate.DefaultCompression
-	ConstantCompression = flate.ConstantCompression
-	HuffmanOnly         = flate.HuffmanOnly
+	NoCompression      = flate.NoCompression
+	BestSpeed          = flate.BestSpeed
+	BestCompression    = flate.BestCompression
+	DefaultCompression = flate.DefaultCompression
+	HuffmanOnly        = flate.HuffmanOnly
 )
 
 // A Writer is an io.WriteCloser.
@@ -91,7 +90,7 @@ func (z *Writer) SetConcurrency(blockSize, blocks int) error {
 // It is the caller's responsibility to call Close on the WriteCloser when done.
 // Writes may be buffered and not flushed until Close.
 func NewWriter(w io.Writer, level int) (*Writer, error) {
-	if level < ConstantCompression || level > BestCompression {
+	if level < HuffmanOnly || level > BestCompression {
 		return nil, fmt.Errorf("gzip: invalid compression level: %d", level)
 	}
 	z := new(Writer)
@@ -301,7 +300,7 @@ func (z *Writer) compressBlock(p, prevTail []byte, r result, closed bool) {
 	dest := bytes.NewBuffer(buf[:0])
 
 	compressor := z.dictFlatePool.Get().(*flate.Writer)
-	compressor.ResetDict(dest, prevTail)
+	compressor.Reset(dest)
 	compressor.Write(p)
 
 	err := compressor.Flush()
