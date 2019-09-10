@@ -75,7 +75,7 @@ var defaultCompressionSettings = CompressionSettings{
 var bestCompressionSettings = CompressionSettings{
 	Flate: FlateSettings{
 		Level:     flate.BestCompression,
-		BlockSize: 16 * 1024 * 1024, // 16MiB
+		BlockSize: 512 * 1024, // 512KiB
 		Blocks:    16,
 	},
 }
