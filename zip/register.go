@@ -43,8 +43,8 @@ type FlateSettings struct {
 }
 
 func (fs *FlateSettings) Validate() error {
-	if fs.Level < flate.NoCompression || fs.Level > flate.BestCompression {
-		return fmt.Errorf("flate settings: level must be between %d and %d, was %d", flate.NoCompression, flate.BestCompression, fs.Level)
+	if fs.Level < -2 || fs.Level > 9 {
+		return fmt.Errorf("flate settings: level must be within [-2,9], was %d", fs.Level)
 	}
 	if fs.Blocks <= 0 {
 		return fmt.Errorf("flate settings: blocks must be equal or greater than 0")
@@ -135,9 +135,8 @@ func (r *pooledFlateReader) Close() error {
 }
 
 var (
-	compressors           sync.Map // map[uint16]Compressor
-	decompressors         sync.Map // map[uint16]Decompressor
-	flateCompressionLevel int      = flate.DefaultCompression
+	compressors   sync.Map // map[uint16]Compressor
+	decompressors sync.Map // map[uint16]Decompressor
 )
 
 func init() {
