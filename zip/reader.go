@@ -471,25 +471,23 @@ func readDataDescriptor(r io.Reader, f *File) error {
 }
 
 func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) {
-	// look for directoryEndSignature in the last 1k, then in the last 65k
+	// look for directoryEndSignature in the last 65k
 	var buf []byte
 	var directoryEndOffset int64
-	for i, bLen := range []int64{1024, 65 * 1024} {
-		if bLen > size {
-			bLen = size
-		}
-		buf = make([]byte, int(bLen))
-		if _, err := r.ReadAt(buf, size-bLen); err != nil && err != io.EOF {
-			return nil, err
-		}
-		if p := findSignatureInBlock(buf); p >= 0 {
-			buf = buf[p:]
-			directoryEndOffset = size - bLen + int64(p)
-			break
-		}
-		if i == 1 || bLen == size {
-			return nil, ErrFormat
-		}
+
+	bLen := int64(65 * 1024)
+	if bLen > size {
+		bLen = size
+	}
+	buf = make([]byte, int(bLen))
+	if _, err := r.ReadAt(buf, size-bLen); err != nil && err != io.EOF {
+		return nil, err
+	}
+	if p := findSignatureInBlock(buf); p >= 0 {
+		buf = buf[p:]
+		directoryEndOffset = size - bLen + int64(p)
+	} else {
+		return nil, ErrFormat
 	}
 
 	// read header into struct
