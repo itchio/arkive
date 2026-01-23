@@ -207,6 +207,7 @@ func parsePAXTime(s string) (time.Time, error) {
 // return the remainder as r.
 //
 // A PAX record is of the following form:
+//
 //	"%d %s=%s\n" % (size, key, value)
 func parsePAXRecord(s string) (k, v, r string, err error) {
 	// The size field ends at the first space.

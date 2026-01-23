@@ -7,9 +7,10 @@
 // by GNU and BSD tars.
 //
 // References:
-//   http://www.freebsd.org/cgi/man.cgi?query=tar&sektion=5
-//   http://www.gnu.org/software/tar/manual/html_node/Standard.html
-//   http://pubs.opengroup.org/onlinepubs/9699919799/utilities/pax.html
+//
+//	http://www.freebsd.org/cgi/man.cgi?query=tar&sektion=5
+//	http://www.gnu.org/software/tar/manual/html_node/Standard.html
+//	http://pubs.opengroup.org/onlinepubs/9699919799/utilities/pax.html
 package tar
 
 import (

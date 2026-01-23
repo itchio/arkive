@@ -68,15 +68,18 @@ type sparseFileReader struct {
 // covered by a sparseEntry are logically filled with zeros.
 //
 // For example, if the underlying raw file contains the 10-byte data:
+//
 //	var compactData = "abcdefgh"
 //
 // And the sparse map has the following entries:
+//
 //	var sp = []sparseEntry{
 //		{offset: 2,  numBytes: 5} // Data fragment for [2..7]
 //		{offset: 18, numBytes: 3} // Data fragment for [18..21]
 //	}
 //
 // Then the content of the resulting sparse file with a "real" size of 25 is:
+//
 //	var sparseData = "\x00"*2 + "abcde" + "\x00"*11 + "fgh" + "\x00"*4
 type sparseEntry struct {
 	offset   int64 // Starting position of the fragment
@@ -425,9 +428,9 @@ func (tr *Reader) skipUnread() error {
 // header in case further processing is required.
 //
 // The err will be set to io.EOF only when one of the following occurs:
-//	* Exactly 0 bytes are read and EOF is hit.
-//	* Exactly 1 block of zeros is read and EOF is hit.
-//	* At least 2 blocks of zeros are read.
+//   - Exactly 0 bytes are read and EOF is hit.
+//   - Exactly 1 block of zeros is read and EOF is hit.
+//   - At least 2 blocks of zeros are read.
 func (tr *Reader) readHeader() (*Header, *block, error) {
 	// Two blocks of zero bytes marks the end of the archive.
 	if _, err := io.ReadFull(tr.r, tr.blk[:]); err != nil {
