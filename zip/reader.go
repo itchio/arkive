@@ -13,14 +13,17 @@ import (
 	"hash/crc32"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
 var (
-	ErrFormat    = errors.New("zip: not a valid zip file")
-	ErrAlgorithm = errors.New("zip: unsupported compression algorithm")
-	ErrChecksum  = errors.New("zip: checksum error")
-	ErrEncrypted = errors.New("zip: encrypted entries not supported")
+	ErrFormat       = errors.New("zip: not a valid zip file")
+	ErrAlgorithm    = errors.New("zip: unsupported compression algorithm")
+	ErrChecksum     = errors.New("zip: checksum error")
+	ErrEncrypted    = errors.New("zip: encrypted entries not supported")
+	ErrInsecurePath = errors.New("zip: insecure file path")
 )
 
 type Reader struct {
@@ -70,6 +73,9 @@ func OpenReader(name string) (*ReadCloser, error) {
 // NewReader returns a new Reader reading from r, which is assumed to
 // have the given size in bytes.
 func NewReader(r io.ReaderAt, size int64) (*Reader, error) {
+	if size < 0 {
+		return nil, errors.New("zip: size cannot be negative")
+	}
 	zr := new(Reader)
 	if err := zr.init(r, size); err != nil {
 		return nil, err
@@ -123,6 +129,18 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	err = normalizeNameEncoding(z)
 	if err != nil {
 		return err
+	}
+
+	// Check for insecure file paths
+	for _, f := range z.File {
+		if f.Name == "" {
+			continue
+		}
+		// The zip specification states that names must use forward slashes,
+		// so consider any backslashes in the name insecure.
+		if !filepath.IsLocal(f.Name) || strings.Contains(f.Name, `\`) {
+			return ErrInsecurePath
+		}
 	}
 
 	return nil
@@ -210,6 +228,9 @@ func (r *checksumReader) Read(b []byte) (n int, err error) {
 	n, err = r.rc.Read(b)
 	r.hash.Write(b[:n])
 	r.nread += uint64(n)
+	if r.nread > r.f.UncompressedSize64 {
+		return 0, ErrFormat
+	}
 	if err == nil {
 		return
 	}
