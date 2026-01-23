@@ -20,6 +20,7 @@ var (
 	ErrFormat    = errors.New("zip: not a valid zip file")
 	ErrAlgorithm = errors.New("zip: unsupported compression algorithm")
 	ErrChecksum  = errors.New("zip: checksum error")
+	ErrEncrypted = errors.New("zip: encrypted entries not supported")
 )
 
 type Reader struct {
@@ -166,6 +167,9 @@ func (f *File) DataOffset() (offset int64, err error) {
 // Open returns a ReadCloser that provides access to the File's contents.
 // Multiple files may be read concurrently.
 func (f *File) Open() (io.ReadCloser, error) {
+	if f.Flags&0x1 != 0 {
+		return nil, ErrEncrypted
+	}
 	bodyOffset, err := f.findBodyOffset()
 	if err != nil {
 		return nil, err
