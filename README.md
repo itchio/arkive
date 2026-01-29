@@ -1,7 +1,5 @@
 # arkive
 
-[![Build Status](https://travis-ci.org/itchio/arkive.svg?branch=master)](https://travis-ci.org/itchio/arkive)
-
 This is a fork of some of Google go's packages.
 
 ### arkive/zip
