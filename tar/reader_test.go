@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"internal/obscuretestdata"
 	"io"
 	"maps"
 	"math"
@@ -635,9 +634,9 @@ func TestReader(t *testing.T) {
 		t.Run(strings.TrimSuffix(path.Base(v.file), ".base64"), func(t *testing.T) {
 			path := v.file
 			if v.obscured {
-				tf, err := obscuretestdata.DecodeToTempFile(path)
+				tf, err := decodeObscuredTestdataToTempFile(path)
 				if err != nil {
-					t.Fatalf("obscuredtestdata.DecodeToTempFile(%s): %v", path, err)
+					t.Fatalf("decodeObscuredTestdataToTempFile(%s): %v", path, err)
 				}
 				path = tf
 			}
@@ -1646,12 +1645,12 @@ func TestFileReader(t *testing.T) {
 	}
 }
 
-func TestInsecurePaths(t *testing.T) {
-	t.Setenv("GODEBUG", "tarinsecurepath=0")
+func TestInsecurePathReturnsHeader(t *testing.T) {
 	for _, path := range []string{
 		"../foo",
 		"/foo",
 		"a/b/../../../c",
+		`a\b`,
 	} {
 		var buf bytes.Buffer
 		tw := NewWriter(&buf)
@@ -1681,24 +1680,5 @@ func TestInsecurePaths(t *testing.T) {
 		if h.Name != securePath {
 			t.Errorf("tr.Next for file %q: got name %q, want %q", securePath, h.Name, securePath)
 		}
-	}
-}
-
-func TestDisableInsecurePathCheck(t *testing.T) {
-	t.Setenv("GODEBUG", "tarinsecurepath=1")
-	var buf bytes.Buffer
-	tw := NewWriter(&buf)
-	const name = "/foo"
-	tw.WriteHeader(&Header{
-		Name: name,
-	})
-	tw.Close()
-	tr := NewReader(&buf)
-	h, err := tr.Next()
-	if err != nil {
-		t.Fatalf("tr.Next with tarinsecurepath=1: got err %v, want nil", err)
-	}
-	if h.Name != name {
-		t.Fatalf("tr.Next with tarinsecurepath=1: got name %q, want %q", h.Name, name)
 	}
 }

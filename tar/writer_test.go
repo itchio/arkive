@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"internal/obscuretestdata"
 	"io"
 	"io/fs"
 	"maps"
@@ -529,9 +528,9 @@ func TestWriter(t *testing.T) {
 			if v.file != "" {
 				path := v.file
 				if v.obscured {
-					tf, err := obscuretestdata.DecodeToTempFile(path)
+					tf, err := decodeObscuredTestdataToTempFile(path)
 					if err != nil {
-						t.Fatalf("obscuretestdata.DecodeToTempFile(%s): %v", path, err)
+						t.Fatalf("decodeObscuredTestdataToTempFile(%s): %v", path, err)
 					}
 					path = tf
 				}

@@ -46,22 +46,17 @@ func NewReader(r io.Reader) *Reader {
 // At the end of the archive, Next returns the error io.EOF.
 //
 // If Next encounters a non-local name (as defined by [filepath.IsLocal])
-// and the GODEBUG environment variable contains `tarinsecurepath=0`,
-// Next returns the header with an [ErrInsecurePath] error.
-// A future version of Go may introduce this behavior by default.
-// Programs that want to accept non-local names can ignore
-// the [ErrInsecurePath] error and use the returned header.
+// or a name containing backslashes, Next returns the header with an
+// [ErrInsecurePath] error. Programs that want to accept non-local names can
+// ignore the [ErrInsecurePath] error and use the returned header.
 func (tr *Reader) Next() (*Header, error) {
 	if tr.err != nil {
 		return nil, tr.err
 	}
 	hdr, err := tr.next()
 	tr.err = err
-	if err == nil && !filepath.IsLocal(hdr.Name) {
-		if tarinsecurepath.Value() == "0" {
-			tarinsecurepath.IncNonDefault()
-			err = ErrInsecurePath
-		}
+	if err == nil && hdr.Name != "" && (!filepath.IsLocal(hdr.Name) || strings.Contains(hdr.Name, `\`)) {
+		err = ErrInsecurePath
 	}
 	return hdr, err
 }

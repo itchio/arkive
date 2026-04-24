@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"internal/testenv"
 	"io"
 	"io/fs"
 	"maps"
@@ -258,7 +257,7 @@ func TestFileInfoHeaderDir(t *testing.T) {
 }
 
 func TestFileInfoHeaderSymlink(t *testing.T) {
-	testenv.MustHaveSymlink(t)
+	mustHaveSymlink(t)
 
 	tmpdir := t.TempDir()
 

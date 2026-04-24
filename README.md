@@ -13,7 +13,7 @@ data prepended to them (like [MojoSetup][] installers).
 
 ### arkive/tar
 
-Fork of `archive/tar`
+Fork of `archive/tar` with checkpoint/resume support for streamed extraction.
 
 (Up-to-date with go 1.26.2)
 
