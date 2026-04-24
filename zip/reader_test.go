@@ -504,6 +504,54 @@ func TestReader(t *testing.T) {
 	}
 }
 
+func TestInsecurePathReturnsReader(t *testing.T) {
+	buf := new(bytes.Buffer)
+	w := NewWriter(buf)
+	f, err := w.Create("dir\\file.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte("content")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	z, err := NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != ErrInsecurePath {
+		t.Fatalf("NewReader error = %v, want %v", err, ErrInsecurePath)
+	}
+	if z == nil {
+		t.Fatal("NewReader returned nil reader")
+	}
+	if got, want := len(z.File), 1; got != want {
+		t.Fatalf("NewReader files = %d, want %d", got, want)
+	}
+	if got, want := z.File[0].Name, "dir\\file.txt"; got != want {
+		t.Fatalf("NewReader file name = %q, want %q", got, want)
+	}
+
+	name := filepath.Join(t.TempDir(), "insecure.zip")
+	if err := os.WriteFile(name, buf.Bytes(), 0666); err != nil {
+		t.Fatal(err)
+	}
+	rc, err := OpenReader(name)
+	if err != ErrInsecurePath {
+		t.Fatalf("OpenReader error = %v, want %v", err, ErrInsecurePath)
+	}
+	if rc == nil {
+		t.Fatal("OpenReader returned nil reader")
+	}
+	defer rc.Close()
+	if got, want := len(rc.File), 1; got != want {
+		t.Fatalf("OpenReader files = %d, want %d", got, want)
+	}
+	if got, want := rc.File[0].Name, "dir\\file.txt"; got != want {
+		t.Fatalf("OpenReader file name = %q, want %q", got, want)
+	}
+}
+
 func readTestZip(t *testing.T, zt ZipTest) {
 	var z *Reader
 	var err error

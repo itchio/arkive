@@ -51,6 +51,12 @@ func (f *File) hasDataDescriptor() bool {
 }
 
 // OpenReader will open the Zip file specified by name and return a ReadCloser.
+//
+// If any file inside the archive uses a non-local name
+// (as defined by [filepath.IsLocal]) or a name containing backslashes,
+// OpenReader returns the reader with an ErrInsecurePath error.
+// Programs that want to accept non-local names can ignore
+// the ErrInsecurePath error and use the returned reader.
 func OpenReader(name string) (*ReadCloser, error) {
 	f, err := os.Open(name)
 	if err != nil {
@@ -62,25 +68,35 @@ func OpenReader(name string) (*ReadCloser, error) {
 		return nil, err
 	}
 	r := new(ReadCloser)
-	if err := r.init(f, fi.Size()); err != nil {
+	if err = r.init(f, fi.Size()); err != nil && err != ErrInsecurePath {
 		f.Close()
 		return nil, err
 	}
 	r.f = f
-	return r, nil
+	return r, err
 }
 
 // NewReader returns a new Reader reading from r, which is assumed to
 // have the given size in bytes.
+//
+// If any file inside the archive uses a non-local name
+// (as defined by [filepath.IsLocal]) or a name containing backslashes,
+// NewReader returns the reader with an [ErrInsecurePath] error.
+// Programs that want to accept non-local names can ignore
+// the [ErrInsecurePath] error and use the returned reader.
 func NewReader(r io.ReaderAt, size int64) (*Reader, error) {
 	if size < 0 {
 		return nil, errors.New("zip: size cannot be negative")
 	}
 	zr := new(Reader)
+	var returnErr error
 	if err := zr.init(r, size); err != nil {
-		return nil, err
+		if err != ErrInsecurePath {
+			return nil, err
+		}
+		returnErr = err
 	}
-	return zr, nil
+	return zr, returnErr
 }
 
 func (z *Reader) init(r io.ReaderAt, size int64) error {
