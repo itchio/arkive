@@ -1,6 +1,6 @@
 module github.com/itchio/arkive
 
-go 1.21
+go 1.24
 
 require (
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f

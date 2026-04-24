@@ -15,7 +15,7 @@ data prepended to them (like [MojoSetup][] installers).
 
 Fork of `archive/tar`
 
-(Up-to-date with go 1.9.2)
+(Up-to-date with go 1.26.2)
 
 ## License
 
