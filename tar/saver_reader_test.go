@@ -2,6 +2,7 @@ package tar
 
 import (
 	"bytes"
+	"encoding/gob"
 	"errors"
 	"io"
 	"os"
@@ -365,5 +366,121 @@ func TestSaverReaderResumeSparseFile(t *testing.T) {
 	}
 	if !bytes.Equal(append(prefix[:], got...), wantFull) {
 		t.Fatal("resumed sparse payload did not match uninterrupted read")
+	}
+}
+
+func TestSaverReaderCheckpointGobRoundTrip(t *testing.T) {
+	data := makeSaverReaderTestTar(t, map[string]string{
+		"big.txt":  "hello world",
+		"next.txt": "tail",
+	})
+
+	sr, err := NewSaverReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sr.Next(); err != nil {
+		t.Fatal(err)
+	}
+	var prefix [6]byte
+	if _, err := io.ReadFull(sr, prefix[:]); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint, err := sr.Save()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var encoded bytes.Buffer
+	if err := gob.NewEncoder(&encoded).Encode(checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	var decoded Checkpoint
+	if err := gob.NewDecoder(&encoded).Decode(&decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Roffset != checkpoint.Roffset || decoded.Pad != checkpoint.Pad ||
+		decoded.CurrType != checkpoint.CurrType || decoded.RegNb != checkpoint.RegNb {
+		t.Fatalf("decoded checkpoint = %+v, want %+v", decoded, *checkpoint)
+	}
+
+	resumed, err := decoded.Resume(bytes.NewReader(data[decoded.Roffset:]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rest, err := io.ReadAll(resumed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(rest) != "world" {
+		t.Fatalf("resumed payload = %q, want world", rest)
+	}
+}
+
+func TestSaverReaderCheckpointSparseGobRoundTrip(t *testing.T) {
+	f, err := os.Open("testdata/sparse-formats.tar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sr, err := NewSaverReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sr.Next(); err != nil {
+		t.Fatal(err)
+	}
+	var prefix [64]byte
+	if _, err := io.ReadFull(sr, prefix[:]); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint, err := sr.Save()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkpoint.CurrType != CurrTypeSparse {
+		t.Fatalf("checkpoint CurrType = %d, want CurrTypeSparse", checkpoint.CurrType)
+	}
+	if len(checkpoint.SparseHoles) == 0 {
+		t.Fatal("checkpoint SparseHoles is empty, want sparse map")
+	}
+
+	var encoded bytes.Buffer
+	if err := gob.NewEncoder(&encoded).Encode(checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	var decoded Checkpoint
+	if err := gob.NewDecoder(&encoded).Decode(&decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.SparseHoles) != len(checkpoint.SparseHoles) ||
+		decoded.SparsePos != checkpoint.SparsePos {
+		t.Fatalf("decoded sparse state = %+v, want %+v", decoded, *checkpoint)
+	}
+
+	resumed, err := decoded.Resume(bytes.NewReader(data[decoded.Roffset:]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(resumed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plain := NewReader(bytes.NewReader(data))
+	if _, err := plain.Next(); err != nil {
+		t.Fatal(err)
+	}
+	wantFull, err := io.ReadAll(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(append(prefix[:], got...), wantFull) {
+		t.Fatal("gob-decoded resumed sparse payload did not match uninterrupted read")
 	}
 }
